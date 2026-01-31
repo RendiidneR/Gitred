@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LiquidCord Pro</title>
+    <style>
+        :root {
+            --glass: rgba(255, 255, 255, 0.07);
+            --border: rgba(255, 255, 255, 0.12);
+            --accent: #00d4ff;
+            --bg: #050510;
+            --online: #43b581;
+        }
+
+        body, html { margin: 0; height: 100vh; background: var(--bg); font-family: 'Whitney', 'Helvetica Neue', sans-serif; color: white; overflow: hidden; }
+
+        /* Жидкий фон */
+        .liquid-bg {
+            position: absolute; width: 100vw; height: 100vh; 
+            background: radial-gradient(circle at 20% 30%, #302b63 0%, transparent 40%),
+                        radial-gradient(circle at 80% 70%, #24243e 0%, transparent 40%);
+            z-index: -2;
+        }
+        .blob {
+            position: absolute; width: 500px; height: 500px; background: var(--accent);
+            filter: blur(100px); border-radius: 50%; opacity: 0.2; z-index: -1;
+            animation: move 20s infinite alternate;
+        }
+        @keyframes move { from { transform: translate(-10%, -10%); } to { transform: translate(20%, 20%); } }
+
+        /* Авторизация */
+        .auth-overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 100; background: var(--bg); }
+        .glass-card { background: var(--glass); backdrop-filter: blur(20px); border: 1px solid var(--border); border-radius: 24px; padding: 40px; width: 320px; text-align: center; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 12px; border: 1px solid var(--border); background: rgba(0,0,0,0.2); color: white; outline: none; box-sizing: border-box; }
+        .btn { width: 100%; padding: 12px; border-radius: 50px; border: none; background: white; color: var(--bg); font-weight: bold; cursor: pointer; transition: 0.2s; margin-top: 10px; }
+        .btn:hover { background: var(--accent); color: white; }
+
+        /* --- ГЛАВНЫЙ ИНТЕРФЕЙС --- */
+        #app { display: flex; width: 100vw; height: 100vh; }
+
+        /* 1. Панель серверов */
+        .server-sidebar { width: 72px; background: rgba(0,0,0,0.4); display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 8px; border-right: 1px solid var(--border); }
+        .s-icon { width: 48px; height: 48px; background: var(--glass); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; border: 1px solid var(--border); font-weight: bold; }
+        .s-icon:hover, .s-icon.active { border-radius: 16px; background: var(--accent); color: white; }
+
+        /* 2. Панель каналов */
+        .channel-sidebar { width: 240px; background: rgba(0,0,0,0.2); display: flex; flex-direction: column; border-right: 1px solid var(--border); }
+        .c-header { padding: 15px; font-weight: bold; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+        .c-list { flex: 1; padding: 10px; overflow-y: auto; }
+        .c-item { padding: 8px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 2px; color: #8e9297; display: flex; align-items: center; gap: 8px; }
+        .c-item:hover, .c-item.active { background: var(--glass); color: white; }
+        .c-group { margin-top: 15px; font-size: 12px; color: #8e9297; text-transform: uppercase; font-weight: bold; margin-bottom: 5px; padding-left: 5px;}
+
+        /* Панель профиля (внизу каналов) */
+        .user-panel { padding: 10px; background: rgba(0,0,0,0.3); display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--border); }
+        .u-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); cursor: pointer; position: relative; background-size: cover; }
+        .u-avatar::after { content: ''; position: absolute; bottom: 0; right: 0; width: 10px; height: 10px; background: var(--online); border-radius: 50%; border: 2px solid #1e1e1e; }
+        .u-info { font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* 3. Чат */
+        .chat-area { flex: 1; display: flex; flex-direction: column; background: transparent; }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 4px; }
+        .msg { display: flex; gap: 16px; padding: 5px 0; }
+        .msg:hover { background: rgba(255,255,255,0.02); }
+        .msg-img { width: 40px; height: 40px; border-radius: 50%; background: #333; flex-shrink: 0; background-size: cover; }
+        .msg-body b { color: var(--accent); font-size: 14px; cursor: pointer; }
+        .msg-body b:hover { text-decoration: underline; }
+        .msg-body p { margin: 2px 0 0; font-size: 15px; color: #dcddde; }
+
+        .chat-input-box { padding: 20px; }
+        .input-wrapper { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 10px 15px; border: 1px solid var(--border); }
+        .input-wrapper input { background: none; border: none; margin: 0; padding: 5px; font-size: 15px; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div class="liquid-bg"></div>
+<div class="blob"></div>
+
+<div id="auth-screen" class="auth-overlay">
+    <div class="glass-card">
+        <h2 id="auth-title">LiquidCord</h2>
+        <div id="auth-inputs">
+            <input type="email" id="email" placeholder="Email">
+            <input type="password" id="pass" placeholder="Пароль">
+            <button class="btn" onclick="authAction()">Войти</button>
+            <p style="font-size: 12px; opacity: 0.6; cursor: pointer; margin-top: 15px;" onclick="switchAuthMode()" id="toggle-text">Создать аккаунт</p>
+        </div>
+        <div id="otp-inputs" class="hidden">
+            <p style="font-size: 14px;">Код подтверждения отправлен!</p>
+            <input type="text" id="otp" placeholder="Код из письма">
+            <button class="btn" onclick="verifyOTP()">Подтвердить</button>
+        </div>
+    </div>
+</div>
+
+<div id="app" class="hidden">
+    <aside class="server-sidebar">
+        <div class="s-icon active" onclick="switchServer(1, this)">L</div>
+        <div class="s-icon" onclick="switchServer(2, this)">P</div>
+        <div class="s-icon" style="color: var(--online)" onclick="addServer()">+</div>
+    </aside>
+
+    <aside class="channel-sidebar">
+        <div class="c-header"><span id="server-name">Liquid Server</span> <span>▼</span></div>
+        <div class="c-list">
+            <div class="c-group">Текстовые каналы</div>
+            <div class="c-item active"># основной</div>
+            <div class="c-item"># идеи-проекта</div>
+            
+            <div class="c-group">Голосовые каналы</div>
+            <div class="c-item" onclick="startCall('Общий')">🔊 Общий</div>
+            <div class="c-item" onclick="startCall('Музыка')">🔊 Музыка</div>
+        </div>
+        
+        <div class="user-panel">
+            <div class="u-avatar" id="my-avatar" onclick="updateProfile()"></div>
+            <div class="u-info">
+                <b id="my-nick">Загрузка...</b><br>
+                <small style="opacity:0.5">#0001</small>
+            </div>
+            <span style="cursor:pointer; opacity:0.5" onclick="location.reload()">⚙️</span>
+        </div>
+    </aside>
+
+    <main class="chat-area">
+        <div class="c-header"># основной</div>
+        <div class="chat-messages" id="chat-msgs"></div>
+        <div class="chat-input-box">
+            <div class="input-wrapper">
+                <input type="text" id="chat-input" placeholder="Написать сообщение..." onkeypress="if(event.key==='Enter') sendMsg()">
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    const API = "http://localhost:3000";
+    let isReg = false;
+    let myUser = { email: '', nick: '', avatar: '' };
+    let currentServer = 1;
+    let lastMsgCount = 0;
+
+    // --- ЛОГИКА АВТОРИЗАЦИИ ---
+    function switchAuthMode() {
+        isReg = !isReg;
+        document.getElementById('auth-title').innerText = isReg ? 'Регистрация' : 'LiquidCord';
+        document.getElementById('toggle-text').innerText = isReg ? 'Уже есть аккаунт?' : 'Создать аккаунт';
+    }
+
+    async function authAction() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('pass').value;
+        if(isReg) {
+            const res = await fetch(`${API}/send-code`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email, password}) });
+            if(res.ok) {
+                myUser.email = email;
+                document.getElementById('auth-inputs').classList.add('hidden');
+                document.getElementById('otp-inputs').classList.remove('hidden');
+            }
+        } else {
+            const res = await fetch(`${API}/login`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email, password}) });
+            if(res.ok) {
+                const data = await res.json();
+                myUser = { email: data.email, nick: data.email.split('@')[0], avatar: '' };
+                enterApp();
+            } else { alert("Неверные данные!"); }
+        }
+    }
+
+    async function verifyOTP() {
+        const code = document.getElementById('otp').value;
+        const res = await fetch(`${API}/verify-code`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email: myUser.email, code}) });
+        if(res.ok) {
+            myUser.nick = myUser.email.split('@')[0];
+            enterApp();
+        } else { alert("Код неверный!"); }
+    }
+
+    // --- РАБОТА ПРИЛОЖЕНИЯ ---
+    function enterApp() {
+        document.getElementById('auth-screen').classList.add('hidden');
+        document.getElementById('app').classList.remove('hidden');
+        document.getElementById('my-nick').innerText = myUser.nick;
+        updateProfileUI();
+        setInterval(loadMessages, 1500); // Частый опрос для "реального времени"
+    }
+
+    function updateProfile() {
+        const n = prompt("Новый ник:", myUser.nick);
+        const a = prompt("URL Аватарки:", myUser.avatar);
+        if(n) myUser.nick = n;
+        if(a) myUser.avatar = a;
+        updateProfileUI();
+    }
+
+    function updateProfileUI() {
+        document.getElementById('my-nick').innerText = myUser.nick;
+        document.getElementById('my-avatar').style.backgroundImage = `url('${myUser.avatar}')`;
+    }
+
+    function switchServer(id, el) {
+        currentServer = id;
+        document.querySelectorAll('.s-icon').forEach(i => i.classList.remove('active'));
+        el.classList.add('active');
+        document.getElementById('server-name').innerText = id === 1 ? "Liquid Server" : "Private Server";
+        loadMessages(true); // Форсированное обновление при смене сервера
+    }
+
+    function startCall(channel) {
+        alert(`Подключение к голосовому каналу [${channel}]...\n(Включен режим имитации WebRTC)`);
+    }
+
+    async function sendMsg() {
+        const inp = document.getElementById('chat-input');
+        if(!inp.value) return;
+        await fetch(`${API}/posts`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ email: myUser.email, nick: myUser.nick, avatar: myUser.avatar, text: inp.value, serverId: currentServer })
+        });
+        inp.value = "";
+        loadMessages();
+    }
+
+    async function loadMessages(force = false) {
+        try {
+            const res = await fetch(`${API}/posts`);
+            const allPosts = await res.json();
+            const filtered = allPosts.filter(p => (p.serverId || 1) === currentServer).reverse();
+
+            // Если количество сообщений не изменилось и это не смена сервера — не перерисовываем (защита от моргания анимации)
+            if (filtered.length === lastMsgCount && !force) return;
+            lastMsgCount = filtered.length;
+
+            const area = document.getElementById('chat-msgs');
+            area.innerHTML = filtered.map(p => `
+                <div class="msg">
+                    <div class="msg-img" style="background-image: url('${p.avatar || 'https://www.gravatar.com/avatar/?d=mp'}')"></div>
+                    <div class="msg-body">
+                        <b>${p.nick || p.email.split('@')[0]}</b>
+                        <p>${p.text}</p>
+                    </div>
+                </div>
+            `).join('');
+            area.scrollTop = area.scrollHeight;
+        } catch(e) {}
+    }
+</script>
+</body>
+</html>
